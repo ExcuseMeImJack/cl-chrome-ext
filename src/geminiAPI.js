@@ -1,59 +1,28 @@
-async function decryptData(encryptedData, iv) {
-  const key = JSON.parse(sessionStorage.getItem("encryptionKey"));
-  const ivArray = new Uint8Array(JSON.parse(sessionStorage.getItem("encryptionIV")));
-
-  if (!key) throw new Error("Encryption key not found. Restart extension.");
-
-  const cryptoKey = await crypto.subtle.importKey(
-    "jwk",
-    key,
-    { name: "AES-GCM" },
-    true,
-    ["decrypt"]
-  );
-
-  const decryptedData = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: ivArray },
-    cryptoKey,
-    new Uint8Array(encryptedData)
-  );
-
-  return new TextDecoder().decode(decryptedData);
-}
-
-// Fetch API key securely
-export async function getAPIKey() {
-  return new Promise((resolve, reject) => {
-    chrome.storage.sync.get("GEMINI_API_KEY", async (data) => {
-      if (!data.GEMINI_API_KEY) return reject("API Key not found.");
-
-      try {
-        const apiKey = await decryptData(data.GEMINI_API_KEY.encrypted, data.GEMINI_API_KEY.iv);
-        resolve(apiKey);
-      } catch (error) {
-        reject("Decryption failed: " + error.message);
-      }
-    });
-  });
-}
-
-
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function getAIResponse(prompt) {
   return new Promise((resolve, reject) => {
     chrome.storage.sync.get("GEMINI_API_KEY", async (data) => {
       if (!data.GEMINI_API_KEY) {
+        console.error("API Key not found.");
         return reject("API Key not found.");
       }
+
+      // Log the API Key to make sure it's being retrieved correctly
+      console.log("API Key retrieved:", data.GEMINI_API_KEY);
 
       const genAI = new GoogleGenerativeAI(data.GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
       try {
+        // Make the request to generate content
         const result = await model.generateContent(prompt);
+        // Log the result for debugging purposes
+        console.log("Generated response:", result.response.text());
         resolve(result.response.text());
       } catch (error) {
+        // Log the error if something goes wrong
+        console.error("Error generating content:", error);
         reject(error);
       }
     });
